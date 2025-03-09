@@ -9,9 +9,14 @@ This repository contains an **Ansible playbook** that automates the setup of a s
 ## 📌 Prerequisites
 1. A **VPS with Ubuntu 22.04 or Debian 12**.
 2. **Ansible installed** on your local machine:
-   ```bash
-   sudo apt update && sudo apt install ansible -y
-   ```
+   - **macOS (via Homebrew):**
+     ```bash
+     brew install ansible
+     ```
+   - **Linux (Debian/Ubuntu):**
+     ```bash
+     sudo apt update && sudo apt install ansible -y
+     ```
 3. SSH access to your VPS with a sudo user.
 4. A private SSH key for authentication.
 
