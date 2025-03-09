@@ -26,34 +26,49 @@ This repository contains an **Ansible playbook** that automates the setup of a s
 
 ### 1️⃣ **Clone the Repository**
 ```bash
-git clone https://github.com/your-repo/vps-setup.git
-cd vps-setup
+git clone git@github.com:glebmark/personal-vpn.git
+cd personal-vpn
 ```
 
 ### 2️⃣ **Set Up Inventory**
 Create a file called `inventory.ini` in the same folder:
 ```ini
 [vps]
-your_vps_ip ansible_user=root 
-ansible_ssh_private_key_file=~/.ssh/your_key.pem
+your_vps_ip ansible_user=root ansible_ssh_private_key_file=~/.ssh/id_rsa
 ```
 Replace:
 - `your_vps_ip` → Your VPS IP address
-- `your_key.pem` → Your SSH key file
+- `your_key.pem` or `your_key` (in case of ssh-keygen) → Your SSH key file
 
-### 3️⃣ **Run the Ansible Playbook**
+### 3️⃣ **Change Default SSH Port**
+Manually change the default SSH port to a custom port:
+1. Open the SSH configuration file on your VPS:
+   ```bash
+   sudo nano /etc/ssh/sshd_config
+   ```
+2. Find the line that starts with `#Port 22` and change it to:
+   ```bash
+   Port 43764
+   ```
+3. Save the file and exit the editor.
+4. Restart the SSH service:
+   ```bash
+   sudo systemctl restart ssh
+   ```
+
+### 4️⃣ **Run the Ansible Playbook**
 ```bash
-ansible-playbook -i inventory.ini ansible_vpn_pihole_unbound.yml
+ansible-playbook -i inventory.ini ansible_vpn_pihole_unbound.yml -vvv
 ```
 
-### 4️⃣ **Retrieve WireGuard Client Configuration**
+### 5️⃣ **Retrieve WireGuard Client Configuration**
 Once the playbook completes, retrieve the **WireGuard client configuration** using:
 ```bash
 cat /root/wg0-client.conf
 ```
 Copy the contents of this file to your Mac.
 
-### 5️⃣ **Connect to WireGuard VPN on macOS**
+### 6️⃣ **Connect to WireGuard VPN on macOS**
 #### **Install WireGuard Client**
 1. Download **WireGuard** from the [Mac App Store](https://apps.apple.com/us/app/wireguard/id1451685025?mt=12).
 
@@ -81,12 +96,13 @@ Copy the contents of this file to your Mac.
   - Root login is disabled
   - Password authentication is disabled
   - A new sudo user (`newuser`) is created
+  - SSH port is changed to a custom port specified in the playbook
 
 - **Pi-hole Logging Disabled**
   - Pi-hole logging is turned off for privacy
 
 - **Firewall Rules:**
-  - **SSH (port 22)** is kept open for remote access
+  - **SSH (custom port)** is kept open for remote access
   - **WireGuard (UDP 51820)** is open
   
 ---

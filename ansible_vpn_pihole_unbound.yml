@@ -4,15 +4,18 @@
   become: yes
   vars:
     wireguard_port: 51820
-    ssh_port: 22
+    ssh_port: 43764
     pihole_dns: "127.0.0.1#5335"
-    admin_user: "newuser"
+    admin_user: "gleb"
     pihole_adlists:
     - "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"
     - "https://adaway.org/hosts.txt"
     - "https://v.firebog.net/hosts/Easyprivacy.txt"
     - "https://v.firebog.net/hosts/Prigent-Ads.txt"
     - "https://v.firebog.net/hosts/AdguardDNS.txt"
+  environment:
+    ANSIBLE_STDOUT_CALLBACK: yaml
+    ANSIBLE_CALLBACK_WHITELIST: profile_tasks
   tasks:
 
   # Update and install dependencies
@@ -162,6 +165,11 @@
       dest: "/var/lib/unbound/root.hints"
 
   # Firewall settings
+  - name: Enable UFW
+    ufw:
+      state: enabled
+      policy: allow
+
   - name: Allow SSH access
     ufw:
       rule: allow
@@ -174,10 +182,8 @@
       port: "{{ wireguard_port }}"
       proto: udp
 
-  - name: Enable UFW
-    ufw:
-      state: enabled
-      policy: allow
+  - name: Reload UFW to apply changes
+    command: ufw reload
 
   handlers:
   - name: Restart Pi-hole
