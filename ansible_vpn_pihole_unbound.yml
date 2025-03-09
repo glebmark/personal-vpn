@@ -1,0 +1,154 @@
+---
+- name: Setup WireGuard VPN, Pi-hole, and Unbound on VPS
+  hosts: vps
+  become: yes
+  vars:
+    wireguard_port: 51820
+    ssh_port: 22
+    pihole_dns: "127.0.0.1#5335"
+    admin_user: "newuser"
+  tasks:
+
+  # Update and install dependencies
+  - name: Update package list and upgrade system
+    apt:
+      update_cache: yes
+      upgrade: dist
+
+  - name: Install required packages
+    apt:
+      name:
+      - curl
+      - wget
+      - ufw
+      - unbound
+      - wireguard
+      - sudo
+      state: present
+
+  # Create a new sudo user
+  - name: Create a new user with sudo privileges
+    user:
+      name: "{{ admin_user }}"
+      groups: sudo
+      append: yes
+      shell: /bin/bash
+      createhome: yes
+
+  # Configure SSH to disable root login and allow only key authentication
+  - name: Secure SSH configuration
+    lineinfile:
+      path: "/etc/ssh/sshd_config"
+      regexp: "^#?PermitRootLogin"
+      line: "PermitRootLogin no"
+
+  - name: Set SSH to use key-based authentication only
+    lineinfile:
+      path: "/etc/ssh/sshd_config"
+      regexp: "^#?PasswordAuthentication"
+      line: "PasswordAuthentication no"
+
+  - name: Restart SSH service
+    service:
+      name: ssh
+      state: restarted
+
+  # Install and configure WireGuard
+  - name: Download WireGuard setup script
+    get_url:
+      url: "https://raw.githubusercontent.com/angristan/wireguard-install/master/wireguard-install.sh"
+      dest: "/root/wireguard-install.sh"
+      mode: '0755'
+
+  - name: Run WireGuard setup script
+    command: "/root/wireguard-install.sh auto"
+    args:
+      creates: "/etc/wireguard/wg0.conf"
+
+  # Generate WireGuard Client Configuration
+  - name: Generate WireGuard client config file
+    copy:
+      dest: "/root/wg0-client.conf"
+      content: |
+        [Interface]
+        PrivateKey = CLIENT_PRIVATE_KEY
+        Address = 10.66.66.2/24
+        DNS = 10.66.66.1
+
+        [Peer]
+        PublicKey = SERVER_PUBLIC_KEY
+        Endpoint = {{ ansible_default_ipv4.address }}:{{ wireguard_port }}
+        AllowedIPs = 0.0.0.0/0, ::/0
+        PersistentKeepalive = 25
+
+  # Install Pi-hole
+  - name: Install Pi-hole
+    shell: "curl -sSL https://install.pi-hole.net | bash"
+    args:
+      creates: "/etc/pihole/setupVars.conf"
+
+  # Disable all Pi-hole logging
+  - name: Disable Pi-hole logging
+    command: "pihole logging off"
+
+  - name: Set Pi-hole upstream DNS to Unbound
+    lineinfile:
+      path: "/etc/pihole/setupVars.conf"
+      regexp: '^PIHOLE_DNS_1='
+      line: "PIHOLE_DNS_1={{ pihole_dns }}"
+    notify: Restart Pi-hole
+
+  # Configure Unbound
+  - name: Configure Unbound for Pi-hole
+    copy:
+      dest: "/etc/unbound/unbound.conf.d/pi-hole.conf"
+      content: |
+        server:
+            interface: 127.0.0.1
+            port: 5335
+            do-ip4: yes
+            do-ip6: yes
+            do-udp: yes
+            do-tcp: yes
+            access-control: 127.0.0.0/8 allow
+            cache-min-ttl: 3600
+            cache-max-ttl: 86400
+            num-threads: 4
+            msg-cache-size: 128m
+            rrset-cache-size: 256m
+            hide-identity: yes
+            hide-version: yes
+            root-hints: "/var/lib/unbound/root.hints"
+    notify: Restart Unbound
+
+  - name: Download root DNS server list
+    get_url:
+      url: "https://www.internic.net/domain/named.cache"
+      dest: "/var/lib/unbound/root.hints"
+
+  # Firewall settings
+  - name: Allow SSH access
+    ufw:
+      rule: allow
+      port: "{{ ssh_port }}"
+      proto: tcp
+
+  - name: Allow WireGuard port
+    ufw:
+      rule: allow
+      port: "{{ wireguard_port }}"
+      proto: udp
+
+  - name: Enable UFW
+    ufw:
+      state: enabled
+      policy: allow
+
+  handlers:
+  - name: Restart Pi-hole
+    command: "pihole restartdns"
+
+  - name: Restart Unbound
+    service:
+      name: unbound
+      state: restarted
