@@ -7,6 +7,12 @@
     ssh_port: 22
     pihole_dns: "127.0.0.1#5335"
     admin_user: "newuser"
+    pihole_adlists:
+    - "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"
+    - "https://adaway.org/hosts.txt"
+    - "https://v.firebog.net/hosts/Easyprivacy.txt"
+    - "https://v.firebog.net/hosts/Prigent-Ads.txt"
+    - "https://v.firebog.net/hosts/AdguardDNS.txt"
   tasks:
 
   # Update and install dependencies
@@ -65,18 +71,39 @@
     args:
       creates: "/etc/wireguard/wg0.conf"
 
+  # Extract WireGuard keys
+  - name: Get WireGuard server public key
+    command: "cat /etc/wireguard/publickey"
+    register: server_public_key
+    changed_when: false
+
+  - name: Generate WireGuard client key pair
+    command: "wg genkey | tee /root/client_privatekey | wg pubkey > /root/client_publickey"
+    args:
+      creates: "/root/client_privatekey"
+
+  - name: Get WireGuard client private key
+    command: "cat /root/client_privatekey"
+    register: client_private_key
+    changed_when: false
+
+  - name: Get WireGuard client public key
+    command: "cat /root/client_publickey"
+    register: client_public_key
+    changed_when: false
+
   # Generate WireGuard Client Configuration
   - name: Generate WireGuard client config file
     copy:
       dest: "/root/wg0-client.conf"
       content: |
         [Interface]
-        PrivateKey = CLIENT_PRIVATE_KEY
+        PrivateKey = {{ client_private_key.stdout }}
         Address = 10.66.66.2/24
         DNS = 10.66.66.1
 
         [Peer]
-        PublicKey = SERVER_PUBLIC_KEY
+        PublicKey = {{ server_public_key.stdout }}
         Endpoint = {{ ansible_default_ipv4.address }}:{{ wireguard_port }}
         AllowedIPs = 0.0.0.0/0, ::/0
         PersistentKeepalive = 25
@@ -97,6 +124,14 @@
       regexp: '^PIHOLE_DNS_1='
       line: "PIHOLE_DNS_1={{ pihole_dns }}"
     notify: Restart Pi-hole
+
+  # Add ad-blocking lists to Pi-hole
+  - name: Add curated adlists to Pi-hole
+    command: "pihole -a -l {{ item }}"
+    loop: "{{ pihole_adlists }}"
+
+  - name: Update gravity (apply new blocklists)
+    command: "pihole -g"
 
   # Configure Unbound
   - name: Configure Unbound for Pi-hole

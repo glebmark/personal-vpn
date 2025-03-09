@@ -34,7 +34,8 @@ cd vps-setup
 Create a file called `inventory.ini` in the same folder:
 ```ini
 [vps]
-your_vps_ip ansible_user=root ansible_ssh_private_key_file=~/.ssh/your_key.pem
+your_vps_ip ansible_user=root 
+ansible_ssh_private_key_file=~/.ssh/your_key.pem
 ```
 Replace:
 - `your_vps_ip` → Your VPS IP address
@@ -92,7 +93,9 @@ Copy the contents of this file to your Mac.
 
 ## 🎯 Summary
 ✅ **Fully automated setup** of WireGuard VPN, Pi-hole, and Unbound
+
 ✅ **Secure & private** with ad-blocking and no third-party DNS
+
 ✅ **Simple Ansible playbook** for repeatable deployments
 
 Enjoy your **private, ad-free, and secure internet connection!** 🚀
