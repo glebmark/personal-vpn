@@ -45,37 +45,28 @@ Once the playbook completes, retrieve the **WireGuard client configuration** usi
 ```bash
 cat /root/wg0-client.conf
 ```
-Copy the contents of this file to your laptop.
+Copy the contents of this file to your Mac.
 
 ### 5️⃣ **Connect to WireGuard VPN on macOS**
 #### **Install WireGuard Client**
-1. Download **WireGuard** from the [official site](https://apps.apple.com/us/app/wireguard/id1451685025?mt=12) or install via Homebrew:
-   ```bash
-   brew install wireguard-tools
-   ```
+1. Download **WireGuard** from the [Mac App Store](https://apps.apple.com/us/app/wireguard/id1451685025?mt=12).
 
-2. **Create a WireGuard configuration file**:
-   ```bash
-   nano ~/wg0-client.conf
-   ```
-   Paste the contents of `wg0-client.conf` from your VPS and save.
+2. **Import the configuration file**:
+   - Open the WireGuard app on macOS.
+   - Click **"Import tunnel from file"**.
+   - Select the `wg0-client.conf` file you copied from your VPS.
+   - Click **Save**.
 
-3. **Import and start the VPN**:
-   ```bash
-   sudo wireguard-go wg0
-   sudo wg-quick up ~/wg0-client.conf
-   ```
-   
+3. **Activate the VPN**:
+   - Click **Activate** in the WireGuard app.
+
 4. **Verify VPN Connection**:
    ```bash
    curl ifconfig.me
    ```
    If the IP matches your VPS, you are connected!
 
-5. **To disconnect**:
-   ```bash
-   sudo wg-quick down ~/wg0-client.conf
-   ```
+5. **To disconnect**, toggle **Deactivate** in the WireGuard app.
 
 ---
 
