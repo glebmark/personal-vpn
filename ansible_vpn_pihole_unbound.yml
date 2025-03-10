@@ -4,7 +4,7 @@
   become: yes
   vars:
     wireguard_port: 51820
-    ssh_port: 43764
+    ssh_port: 22
     pihole_dns: "127.0.0.1#5335"
     admin_user: "gleb"
     pihole_adlists:
@@ -45,11 +45,11 @@
       createhome: yes
 
   # Configure SSH to disable root login and allow only key authentication
-  - name: Secure SSH configuration
-    lineinfile:
-      path: "/etc/ssh/sshd_config"
-      regexp: "^#?PermitRootLogin"
-      line: "PermitRootLogin no"
+  # - name: Secure SSH configuration
+  #   lineinfile:
+  #     path: "/etc/ssh/sshd_config"
+  #     regexp: "^#?PermitRootLogin"
+  #     line: "PermitRootLogin no"
 
   - name: Set SSH to use key-based authentication only
     lineinfile:

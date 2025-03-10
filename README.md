@@ -40,7 +40,18 @@ Replace:
 - `your_vps_ip` → Your VPS IP address
 - `your_key.pem` or `your_key` (in case of ssh-keygen) → Your SSH key file
 
-### 3️⃣ **Change Default SSH Port**
+### 3️⃣ **Run the Ansible Playbook**
+```bash
+ansible-playbook -i inventory.ini ansible_vpn_pihole_unbound.yml -vv
+```
+
+### 4️⃣ **Allow Custom SSH Port in UFW**
+Allow the custom SSH port in UFW on your VPS:
+```bash
+sudo ufw allow 43764/tcp
+```
+
+### 5️⃣ **Change Default SSH Port**
 Manually change the default SSH port to a custom port:
 1. Open the SSH configuration file on your VPS:
    ```bash
@@ -56,19 +67,20 @@ Manually change the default SSH port to a custom port:
    sudo systemctl restart ssh
    ```
 
-### 4️⃣ **Run the Ansible Playbook**
+### 6️⃣ **Disallow Default SSH Port 22 in UFW**
+Disallow the default SSH port 22 in UFW:
 ```bash
-ansible-playbook -i inventory.ini ansible_vpn_pihole_unbound.yml -vvv
+sudo ufw delete allow 22/tcp
 ```
 
-### 5️⃣ **Retrieve WireGuard Client Configuration**
+### 7️⃣ **Retrieve WireGuard Client Configuration**
 Once the playbook completes, retrieve the **WireGuard client configuration** using:
 ```bash
 cat /root/wg0-client.conf
 ```
 Copy the contents of this file to your Mac.
 
-### 6️⃣ **Connect to WireGuard VPN on macOS**
+### 8️⃣ **Connect to WireGuard VPN on macOS**
 #### **Install WireGuard Client**
 1. Download **WireGuard** from the [Mac App Store](https://apps.apple.com/us/app/wireguard/id1451685025?mt=12).
 
