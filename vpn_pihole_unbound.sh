@@ -1,10 +1,9 @@
 #!/bin/bash
 
-# filepath: /Users/gleb/code/personal/setup_vpn_pihole_unbound.sh
-
 # Variables
-WIREGUARD_PORT=51820
-SSH_PORT=43764
+WIREGUARD_PORT=
+SSH_PORT=
+SSH_PUBLIC_KEY=""
 PIHOLE_DNS="127.0.0.1#5335"
 ADMIN_USER="gleb"
 PIHOLE_ADLISTS=(
@@ -21,45 +20,46 @@ apt install -y curl wget ufw unbound wireguard sudo
 
 # Create a new sudo user
 useradd -m -s /bin/bash -G sudo $ADMIN_USER
+sudo passwd $ADMIN_USER
 
-# sed -i 's/^#PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
+# add my public ssh key
+mkdir -p /home/$ADMIN_USER/.ssh
+chmod 700 /home/$ADMIN_USER/.ssh
+echo $SSH_PUBLIC_KEY >> /home/$ADMIN_USER/.ssh/authorized_keys
+chmod 600 /home/$ADMIN_USER/.ssh/authorized_keys
+chown -R $ADMIN_USER:$ADMIN_USER /home/$ADMIN_USER/.ssh
+
+# configure ssh
+sed -i 's/^#PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
+sed -i 's/^PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
 sed -i 's/^#PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
 sed -i "s/^#Port 22/Port $SSH_PORT/" /etc/ssh/sshd_config
+sed -i "s/^Port 22/Port $SSH_PORT/" /etc/ssh/sshd_config
+
+# debug:
+# login into DigitalOcean console and fix config manually
+
+# For changes to take effect, run:
+systemctl daemon-reload
 systemctl restart ssh
+systemctl restart ssh.socket
 
 # Install and configure WireGuard
-curl -o /root/wireguard-install.sh https://raw.githubusercontent.com/angristan/wireguard-install/master/wireguard-install.sh
-chmod +x /root/wireguard-install.sh
-/root/wireguard-install.sh auto
+curl -o ./wireguard-install.sh https://raw.githubusercontent.com/angristan/wireguard-install/master/wireguard-install.sh
+chmod +x ./wireguard-install.sh
+./wireguard-install.sh auto
 
-# Extract WireGuard keys
-SERVER_PUBLIC_KEY=$(cat /etc/wireguard/publickey)
-wg genkey | tee /root/client_privatekey | wg pubkey > /root/client_publickey
-CLIENT_PRIVATE_KEY=$(cat /root/client_privatekey)
-CLIENT_PUBLIC_KEY=$(cat /root/client_publickey)
+# After installation client key would be available under two options:
+# 1) QR code
+# 2) /root/wg0-client-{client custom name}.conf
 
-# Generate WireGuard Client Configuration
-cat <<EOF > /root/wg0-client.conf
-[Interface]
-PrivateKey = $CLIENT_PRIVATE_KEY
-Address = 10.66.66.2/24
-DNS = 10.66.66.1
-
-[Peer]
-PublicKey = $SERVER_PUBLIC_KEY
-Endpoint = $(hostname -I | awk '{print $1}'):$WIREGUARD_PORT
-AllowedIPs = 0.0.0.0/0, ::/0
-PersistentKeepalive = 25
-EOF
-
-# Install Pi-hole
+sudo apt-get install --no-install-recommends curl git iproute2 procps lsof net-tools
 curl -sSL https://install.pi-hole.net | bash
 
-# Disable all Pi-hole logging
 pihole logging off
 
-# Set Pi-hole upstream DNS to Unbound
-sed -i "s/^PIHOLE_DNS_1=.*/PIHOLE_DNS_1=$PIHOLE_DNS/" /etc/pihole/setupVars.conf
+# Go to admin interface and set DNS to 127.0.0.1#5335
+
 pihole restartdns
 
 # Add ad-blocking lists to Pi-hole
@@ -95,7 +95,23 @@ curl -o /var/lib/unbound/root.hints https://www.internic.net/domain/named.cache
 systemctl restart unbound
 
 # Firewall settings
+# apt install -y ufw
 ufw enable
 ufw allow $SSH_PORT/tcp
 ufw allow $WIREGUARD_PORT/udp
 ufw reload
+
+# Test if evertyhing works
+# 1) https://browserleaks.com
+# 2) https://ipleak.net
+# 3) https://dnsleaktest.com
+# 4) systemctl status unbound
+# 5) dig @127.0.0.1 -p 5335 google.com
+# it should show:
+# A NOERROR status
+# An ANSWER SECTION with IP addresses
+# A Query time (e.g., 10 msec)
+# SERVER: 127.0.0.1#5335
+# 6) dig @127.0.0.1 -p 5335 dnssec-failed.org +dnssec
+# it should show:
+# A SERVFAIL status
