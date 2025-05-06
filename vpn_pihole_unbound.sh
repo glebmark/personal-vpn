@@ -3,7 +3,7 @@
 # Variables
 WIREGUARD_PORT=
 SSH_PORT=
-SSH_PUBLIC_KEY=""
+SSH_PUBLIC_KEY="" # cat ~/.ssh/id_rsa.pub
 PIHOLE_DNS="127.0.0.1#5335"
 ADMIN_USER="gleb"
 PIHOLE_ADLISTS=(
@@ -18,40 +18,21 @@ PIHOLE_ADLISTS=(
 apt update && apt upgrade -y
 apt install -y curl wget ufw unbound wireguard sudo
 
-# Create a new sudo user
-useradd -m -s /bin/bash -G sudo $ADMIN_USER
-sudo passwd $ADMIN_USER
-
-# add my public ssh key
-mkdir -p /home/$ADMIN_USER/.ssh
-chmod 700 /home/$ADMIN_USER/.ssh
-echo $SSH_PUBLIC_KEY >> /home/$ADMIN_USER/.ssh/authorized_keys
-chmod 600 /home/$ADMIN_USER/.ssh/authorized_keys
-chown -R $ADMIN_USER:$ADMIN_USER /home/$ADMIN_USER/.ssh
-
-# configure ssh
-sed -i 's/^#PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
-sed -i 's/^PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
-sed -i 's/^#PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
-sed -i "s/^#Port 22/Port $SSH_PORT/" /etc/ssh/sshd_config
-sed -i "s/^Port 22/Port $SSH_PORT/" /etc/ssh/sshd_config
-
-# debug:
-# login into DigitalOcean console and fix config manually
-
-# For changes to take effect, run:
-systemctl daemon-reload
-systemctl restart ssh
-systemctl restart ssh.socket
-
-# Install and configure WireGuard
+################################################
+############## WireGuard #######################
+################################################
 curl -o ./wireguard-install.sh https://raw.githubusercontent.com/angristan/wireguard-install/master/wireguard-install.sh
 chmod +x ./wireguard-install.sh
 ./wireguard-install.sh auto
 
 # After installation client key would be available under two options:
 # 1) QR code
-# 2) /root/wg0-client-{client custom name}.conf
+# 2) /root/wg0-client-{client custom name}.conf 
+# scp -P $SSH_PORT root@$IP_ADDRESS:/root/wg0-client.conf . # alternative is export via QR code
+
+################################################
+############## PI-HOLE #########################
+################################################
 
 sudo apt-get install --no-install-recommends curl git iproute2 procps lsof net-tools
 curl -sSL https://install.pi-hole.net | bash
@@ -62,7 +43,7 @@ pihole logging off
 
 pihole restartdns
 
-# Add ad-blocking lists to Pi-hole
+# Add ad-blocking lists to Pi-hole or add them via the web interface
 for adlist in "${PIHOLE_ADLISTS[@]}"; do
   pihole -a -l "$adlist"
 done
@@ -94,14 +75,15 @@ EOF
 curl -o /var/lib/unbound/root.hints https://www.internic.net/domain/named.cache
 systemctl restart unbound
 
-# Firewall settings
-# apt install -y ufw
-ufw enable
-ufw allow $SSH_PORT/tcp
-ufw allow $WIREGUARD_PORT/udp
-ufw reload
+curl -O https://raw.githubusercontent.com/Nyr/openvpn-install/master/openvpn-install.sh
+chmod +x openvpn-install.sh
+./openvpn-install.sh
+scp -P $SSH_PORT root@$VPS_IP:/root/$VPN_CLIENT_NAME.ovpn .
+# TODO how to route openvpn through pi-hole?
 
-# Test if evertyhing works
+################################################
+############## Test if evertyhing works ########
+###############################################
 # 1) https://browserleaks.com
 # 2) https://ipleak.net
 # 3) https://dnsleaktest.com
@@ -115,3 +97,51 @@ ufw reload
 # 6) dig @127.0.0.1 -p 5335 dnssec-failed.org +dnssec
 # it should show:
 # A SERVFAIL status
+
+# debug:
+# login into DigitalOcean console and fix config manually
+
+################################################
+############## SETUP NEW USER ##################
+################################################
+
+# Create a new sudo user
+useradd -m -s /bin/bash -G sudo $ADMIN_USER
+sudo passwd $ADMIN_USER
+
+# add my public ssh key
+mkdir -p /home/$ADMIN_USER/.ssh
+chmod 700 /home/$ADMIN_USER/.ssh
+echo $SSH_PUBLIC_KEY >> /home/$ADMIN_USER/.ssh/authorized_keys
+chmod 600 /home/$ADMIN_USER/.ssh/authorized_keys
+chown -R $ADMIN_USER:$ADMIN_USER /home/$ADMIN_USER/.ssh
+
+################################################
+############## SETUP SSH SERVER ################
+################################################
+
+sed -i 's/^#PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
+sed -i 's/^PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
+sed -i 's/^#PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
+sed -i "s/^#Port 22/Port $SSH_PORT/" /etc/ssh/sshd_config
+sed -i "s/^Port 22/Port $SSH_PORT/" /etc/ssh/sshd_config
+
+################################################
+############## SETUP FIREWALL ##################
+################################################
+
+apt install -y ufw
+ufw allow $SSH_PORT/tcp
+ufw allow $SSH_PORT/udp
+ufw allow $WIREGUARD_PORT/udp
+ufw enable
+ufw reload
+
+################################################
+############## RELOAD SSH SERVER ###############
+################################################
+
+# For changes to take effect, run:
+systemctl daemon-reload
+systemctl restart ssh
+systemctl restart ssh.socket
